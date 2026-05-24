@@ -334,3 +334,133 @@ python src/evaluate.py
 - **Não altere os datasets de avaliação** - apenas os prompts em `prompts/bug_to_user_story_v2.yml`
 - **Itere, itere, itere** - é normal precisar de 3-5 iterações para atingir 0.9 em todas as métricas
 - **Documente seu processo** - a jornada de otimização é tão importante quanto o resultado final
+
+## A) Técnicas utilizadas
+
+Durante o desenvolvimento do prompt, percebi que apenas ter uma estrutura bem escrita não era suficiente para atingir o score mínimo de **0,90** exigido pelos validadores (`evaluate` e `metrics`). O prompt inicial já produzia User Stories razoáveis, porém ainda apresentava problemas de consistência, precisão e aderência semântica ao comportamento esperado pelos avaliadores. Por isso, precisei realizar ajustes progressivos e combinar diferentes técnicas de Prompt Engineering para tornar a saída mais previsível, objetiva e consistente.
+
+O primeiro passo foi garantir o atendimento dos critérios obrigatórios do desafio. O teste exigia o uso de **Few-Shot Learning** e pelo menos uma técnica avançada adicional. Inicialmente eu utilizava apenas **Chain of Thought (CoT)**, mas percebi que isso não era suficiente para estabilizar as métricas. Assim, mantive o CoT e complementei o prompt com **Skeleton of Thought (SoT)**, **Role Prompting** e uma estrutura rigidamente controlada (**Structured Output**). O objetivo foi reduzir ambiguidades e aumentar previsibilidade.
+
+Em seguida, reforcei o **Role Prompting**, definindo explicitamente o modelo como um:
+
+ *Product Owner técnico sênior especializado em refinamento de bugs e escrita de User Stories ágeis.*
+
+Esse ajuste fez diferença porque as respostas passaram a ter linguagem mais técnica, objetiva e acionável, reduzindo respostas excessivamente genéricas ou conversacionais e tornando o output mais próximo do esperado por um time de desenvolvimento.
+
+Depois disso, implementei um **Chain of Thought interno**, mas com um detalhe importante: o raciocínio não deveria aparecer na resposta final. Ou seja, o modelo passou a “pensar passo a passo” internamente antes de responder, seguindo um fluxo obrigatório:
+
+1. Identificar se o bug era simples, médio ou complexo;
+2. Escolher a estrutura correta da resposta;
+3. Aplicar regras do guia de adaptação;
+4. Revisar se todas as informações relevantes do relato foram preservadas.
+
+Essa mudança ajudou principalmente na consistência e na métrica de **Correctness**, porque reduziu respostas incoerentes ou incompletas.
+
+Outro ajuste importante foi a implementação do **Skeleton of Thought (SoT)**. Antes disso, o prompt utilizava praticamente a mesma estrutura para qualquer bug, gerando respostas excessivas em alguns casos e insuficientes em outros. Então, passei a classificar os bugs em três níveis:
+
+* **SIMPLES**
+* **MÉDIO**
+* **COMPLEXO**
+
+Cada categoria passou a ter uma estrutura própria de saída.
+
+* **SIMPLES:** User Story + critérios de aceitação objetivos
+* **MÉDIO:** inclusão de contexto técnico e critérios adicionais quando necessário
+* **COMPLEXO:** estrutura detalhada com múltiplas seções, como critérios técnicos, contexto do bug e tasks sugeridas
+
+Esse ajuste melhorou significativamente a clareza da resposta e reduziu ruído textual.
+
+Também ampliei o uso de **Few-Shot Learning**. O prompt inicial tinha poucos exemplos e pouca variedade de cenários. Para melhorar a aderência semântica das respostas, incluí diversos exemplos representativos, como:
+
+* falha em botões de interface;
+* validação incorreta de formulários;
+* inconsistência em dashboards;
+* lentidão de relatórios;
+* falhas de webhook e APIs;
+* race condition;
+* estoque no checkout;
+* modal mobile;
+* Android ANR;
+* bugs complexos com múltiplos problemas.
+
+Além da variedade, os exemplos passaram a conter entradas mais realistas, critérios Given/When/Then (GWT) e contexto técnico detalhado, aumentando a similaridade entre exemplos e saídas geradas.
+
+Outro ponto implementado foi um **Guia de Adaptação**, que funcionava como um mecanismo de padronização para bugs recorrentes. Percebi que existiam padrões de comportamento repetidos em cenários como webhook, dashboard, modal mobile, checkout e relatórios lentos. Então passei a definir explicitamente:
+
+* persona esperada;
+* objetivo esperado da User Story;
+* critérios de aceite sugeridos;
+* comportamentos esperados por categoria.
+
+Isso reduziu a variabilidade das respostas e aumentou a estabilidade do modelo.
+
+Também precisei controlar a tendência do modelo de “inventar” contexto técnico. Para isso, adicionei regras explícitas, como:
+
+* não inventar tecnologias, endpoints ou arquitetura;
+* não assumir browser, API ou banco de dados não mencionados;
+* não inferir comportamentos inexistentes;
+* não citar IDs específicos do relato nos critérios GWT;
+* responder apenas com a User Story formatada;
+* restringir estruturas complexas apenas a cenários realmente complexos.
+
+Por fim, padronizei os **critérios de aceitação** utilizando o modelo **Given / When / Then (GWT)**, tornando-os mais testáveis e observáveis. Antes disso, muitos critérios eram vagos e pouco verificáveis. Após a mudança, passaram a seguir uma estrutura clara:
+
+> Dado que estou visualizando um produto
+> Quando clico em “Adicionar ao Carrinho”
+> Então o produto deve ser adicionado ao carrinho
+
+Essa padronização melhorou a qualidade semântica das respostas e reduziu critérios genéricos.
+
+---
+
+## B) Resultados finais
+
+Após os refinamentos, o prompt passou de uma solução funcional, porém inconsistente, para um comportamento muito mais previsível e alinhado ao que os validadores automáticos esperavam.
+
+O principal aprendizado foi perceber que não bastava gerar uma “boa User Story”; era necessário gerar uma resposta semanticamente consistente, estruturada e altamente aderente aos critérios das métricas automáticas.
+
+Os ajustes realizados trouxeram ganhos importantes:
+
+* aumento da **Correctness**, devido ao raciocínio interno e redução de inferências indevidas;
+* melhora da **Clarity**, por meio da classificação de complexidade e organização da resposta;
+* aumento da **Precision**, reduzindo ambiguidades e excesso de criatividade;
+* melhora da **Helpfulness**, com critérios de aceite mais objetivos e acionáveis;
+* aumento do **F1-score**, graças à maior proximidade semântica entre relato, exemplos e resposta gerada.
+
+O ganho mais significativo veio da combinação das técnicas utilizadas:
+
+> **Few-Shot Learning + Chain of Thought interno + Skeleton of Thought + Role Prompting + regras explícitas + guia de adaptação + padronização dos critérios de aceite (GWT)**
+
+Com esse conjunto de refinamentos, consegui estabilizar o comportamento do prompt e atingir o score mínimo de **0,90** exigido no teste.
+
+## 3) Como executar
+## A) Primeiro é preciso copiar o .env.example e renomea-lo para .env inserindo as credencias da OPENAI e do LANGSMITH e o seu username do langsmith
+
+## B) Ativar o ambiente virtual com o comando:
+windonws: .venv/Scripts/Activate.ps1
+mac: source venv/bin/activate
+
+## C) Executar a instalação das dependencias no ambiente virtual com o comando:
+pip install -r requirements.txt
+
+## D) Entrar na pasta src com o comando:
+cd src
+
+## E) Baixar o arquivo bug_to_user_story_v1.yml de prompt do langsmith com o comando
+python pull_prompts.py, ele será criado na pasta src/prompts
+
+## F) Criar uma copia do arquivo de prompt com versao 2 e realizar a refatoração usando few shot com 6 exemplos, chain of thought, skeleton of thought, persona, role prompting e padronização de criterios de aceite GWT (Given, When, Then)
+
+## G) Enviar o prompt para o langsmith com o comando
+python push_prompts.py
+
+## H) Sair da pasta src com o comando
+cd ..
+
+## I) Copiar o arquivo bug_to_user_story_v2.yml para a pasta prompt e executar o comando de avaliação das metricas com o evaluate
+python evaluate.py
+
+## 3) Evidencias do langsmith
+link: https://smith.langchain.com/hub/laisagomes/bug_to_user_story_v2
+As evidencias da aprovação e do teste encontra-se nas imagens na raiz do projeto chamada: Prompt aprovado.png
+teste com sucesso.png
